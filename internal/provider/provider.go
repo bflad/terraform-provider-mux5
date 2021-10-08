@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -29,10 +31,33 @@ type apiClient struct {
 	// Intentionally blank.
 }
 
-func configure(version string, p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func configure(providerVersion string, p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	return func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
-		// Intentionally blank.
+		var diags diag.Diagnostics
 
-		return &apiClient{}, nil
+		if p.TerraformVersion != "" {
+			tfVersion, err := version.NewVersion(p.TerraformVersion)
+
+			if err != nil {
+				return nil, diag.FromErr(fmt.Errorf("Unable to parse Terraform CLI version: %w", err))
+			}
+
+			tfVersionConstraint, err := version.NewConstraint(">= 1.0")
+
+			if err != nil {
+				return nil, diag.FromErr(fmt.Errorf("Unable to parse Terraform CLI version constaint: %w", err))
+			}
+
+			if !tfVersionConstraint.Check(tfVersion) {
+				diags = append(diags, diag.Diagnostic{
+					Severity: diag.Error,
+					Summary:  "Unsupported Terraform CLI Version",
+					Detail:   fmt.Sprintf("Current Terraform CLI version is %s. This provider requires Terraform CLI version 1.0 or later.", p.TerraformVersion),
+				})
+				return nil, diags
+			}
+		}
+
+		return &apiClient{}, diags
 	}
 }
