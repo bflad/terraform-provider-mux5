@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate Release Notes
+        run: sed -n -e "1{/# /d;}" -e "2{/^$/d;}" -e "/# $(git describe --abbrev=0 --exclude="$(git describe --abbrev=0 --match='v*.*.*' --tags)" --match='v*.*.*' --tags | tr -d v)/q;p" CHANGELOG.md > release-notes.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.txt
+          retention-days: 1
+  terraform-provider-release:
+    name: 'Terraform Provider Release'
+    needs: [release-notes]
+    uses: hashicorp/ghaction-terraform-provider-release/.github/workflows/community.yml@v3
+    secrets:
+      gpg-private-key: '${{ secrets.GPG_PRIVATE_KEY }}'
+    with:
+      release-notes: true
+      setup-go-version-file: 'go.mod'
