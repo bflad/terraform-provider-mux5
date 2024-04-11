@@ -1,6 +1,6 @@
 archives:
   - files:
-      - none*
+      - 'LICENSE'
     format: zip
     name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 before:
