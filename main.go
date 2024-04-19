@@ -5,8 +5,10 @@ import (
 	"flag"
 	"log"
 
-	"github.com/bflad/terraform-provider-sdk/internal/provider"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
+	"github.com/bflad/terraform-provider-mux5/internal/provider"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5/tf5server"
+	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
 )
 
 // Run "go generate" to format example terraform files and generate the docs for the registry/website
@@ -29,20 +31,35 @@ var (
 )
 
 func main() {
-	var debugMode bool
+	var debugFlag bool
 
-	flag.BoolVar(&debugMode, "debug", false, "set to true to run the provider with support for debuggers like delve")
+	flag.BoolVar(&debugFlag, "debug", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
 
-	opts := &plugin.ServeOpts{ProviderFunc: provider.New(version)}
-
-	if debugMode {
-		err := plugin.Debug(context.Background(), "registry.terraform.io/bflad/sdk", opts)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-		return
+	ctx := context.Background()
+	providers := []func() tfprotov5.ProviderServer{
+		provider.New(version)().GRPCProvider,
 	}
 
-	plugin.Serve(opts)
+	muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var serveOpts []tf5server.ServeOpt
+
+	if debugFlag {
+		serveOpts = append(serveOpts, tf5server.WithManagedDebug())
+	}
+
+	err = tf5server.Serve(
+		"registry.terraform.io/bflad/mux5",
+		muxServer.ProviderServer,
+		serveOpts...,
+	)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }

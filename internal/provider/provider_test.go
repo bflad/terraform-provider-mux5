@@ -1,14 +1,27 @@
 package provider
 
 import (
+	"context"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
+	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
 )
 
-var providerFactories = map[string]func() (*schema.Provider, error){
-	"sdk": func() (*schema.Provider, error) {
-		return New("dev")(), nil
+var protov5ProviderFactories = map[string]func() (tfprotov5.ProviderServer, error){
+	"mux5": func() (tfprotov5.ProviderServer, error) {
+		ctx := context.Background()
+		providers := []func() tfprotov5.ProviderServer{
+			New("test")().GRPCProvider,
+		}
+
+		muxServer, err := tf5muxserver.NewMuxServer(ctx, providers...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return muxServer.ProviderServer(), nil
 	},
 }
 
